@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <title>벨로시티역전</title>
+    <style>
+        body {
+            background: #121212;
+            color: white;
+            font-family: sans-serif;
+            text-align: center;
+            margin-top: 50px;
+        }
+
+        #display {
+            width: 800px;
+            height: 180px;
+            margin: 20px auto;
+            border: 3px solid #333;
+            border-radius: 15px;
+            background: #1e1e1e;
+            position: relative;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            padding: 0 10px;
+        }
+
+        .rythm-box {
+            width: 90px;
+            height: 130px;
+            border: 2px solid #444;
+            border-radius: 8px;
+            transition: all 0.05s ease;
+            background: rgba(255, 255, 255, 0.05);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #444;
+            position: relative;
+        }
+
+        .rythm-box.active {
+            background: #fff;
+            border-color: #fff;
+            color: #121212;
+            box-shadow: 0 0 20px #fff;
+            transform: scale(1.05);
+        }
+
+        /* 예고 스타일 */
+        .rythm-box[data-index="6"].preview-hold {
+            color: #ffeb3b;
+            border-color: #ffeb3b;
+        }
+
+        .rythm-box[data-index="6"].preview-vel {
+            color: #bc00ff;
+            border-color: #bc00ff;
+        }
+
+        #overlay-value {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 5rem;
+            font-weight: 900;
+            z-index: 20;
+            display: none;
+            pointer-events: none;
+            text-shadow: 0 0 30px rgba(0, 0, 0, 1);
+        }
+
+        #log {
+            font-size: 2rem;
+            margin-top: 20px;
+            min-height: 1.5em;
+            font-weight: bold;
+        }
+
+        .ms-offset {
+            font-size: 1.2rem;
+            margin-left: 10px;
+            opacity: 0.8;
+        }
+
+        .info {
+            color: #666;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>VELO City</h1>
+    <div id="log">READY</div>
+
+    <div id="display">
+        <div id="overlay-value">0</div>
+        <div class="rythm-box" data-index="0">1</div>
+        <div class="rythm-box" data-index="1">2</div>
+        <div class="rythm-box" data-index="2">3</div>
+        <div class="rythm-box" data-index="3">4</div>
+        <div class="rythm-box" data-index="4">5</div>
+        <div class="rythm-box" data-index="5">6</div>
+        <div class="rythm-box" data-index="6">7</div>
+    </div>
+
+    <script>
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const INITIAL_SPEED = 0.02;
+        const ACCELERATION = 0.00015;
+
+        const rhythmData = [
+            { "time": 4000, "bpm": 120 },
+            { "time": 5500, "bpm": 120 },
+            { "time": 8000, "bpm": 120, "duration": 4 },
+            { "time": 11000, "bpm": 120, "velocity": 300 }
+        ];
+
+        let activeEvents = [];
+        let isStarted = false;
+
+        function playBeep(freq, vol = 0.1, dur = 0.1) {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.frequency.value = freq;
+            gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + dur);
+            osc.start(); osc.stop(audioCtx.currentTime + dur);
+        }
+
+        function update() {
+            const now = audioCtx.currentTime * 1000;
+            const boxes = document.querySelectorAll('.rythm-box');
+            const overlay = document.getElementById('overlay-value');
+
+            if (rhythmData.length > 0) {
+                const beatDur = 60000 / rhythmData[0].bpm;
+                if (now >= rhythmData[0].time - (beatDur * 6)) {
+                    const ev = rhythmData.shift();
+                    ev.beatDur = beatDur;
+                    ev.startTime = ev.time - (beatDur * 6);
+                    ev.isFinished = false;
+                    ev.isHolding = false;
+                    ev.lastPlayedBeat = -1;
+                    ev.holdBeatCounter = 0;
+                    activeEvents.push(ev);
+                }
+            }
+
+            // UI 초기화
+            boxes.forEach(box => {
+                box.classList.remove('active', 'preview-hold', 'preview-vel');
+                box.innerText = parseInt(box.dataset.index) + 1;
+            });
+
+            activeEvents.forEach(ev => {
+                if (ev.isFinished) return;
+                const elapsed = now - ev.startTime;
+                const currentBeat = Math.floor(elapsed / ev.beatDur);
+
+                if (!ev.isHolding && currentBeat <= 6) {
+                    if (currentBeat > ev.lastPlayedBeat) {
+                        ev.lastPlayedBeat = currentBeat;
+                        playBeep(440);
+                    }
+                    const targetBox = boxes[currentBeat];
+                    if (targetBox) targetBox.classList.add('active');
+
+                    // 예고 로직
+                    if (currentBeat >= 3) {
+                        const lastBox = boxes[6];
+                        if (ev.duration) {
+                            lastBox.classList.add('preview-hold');
+                            lastBox.innerText = `HOLD(${ev.duration})`;
+                        } else if (ev.velocity) {
+                            lastBox.classList.add('preview-vel');
+                            lastBox.innerText = `VAL(${ev.velocity})`;
+                        }
+                    }
+                }
+
+                if (ev.isHolding) {
+                    overlay.style.display = 'block';
+                    const hElapsed = now - ev.pressStartTime;
+                    if (ev.velocity) {
+                        const val = (INITIAL_SPEED * hElapsed) + (0.5 * ACCELERATION * hElapsed * hElapsed);
+                        overlay.innerText = Math.floor(val);
+                        overlay.style.color = "#bc00ff";
+                    } else {
+                        const hBeat = Math.floor(hElapsed / ev.beatDur);
+                        if (hBeat > ev.holdBeatCounter) {
+                            ev.holdBeatCounter = hBeat;
+                            overlay.innerText = ev.holdBeatCounter;
+                            playBeep(660);
+                        }
+                        overlay.style.color = "#ffeb3b";
+                    }
+                }
+
+                if (!ev.isHolding && now > ev.time + 250) {
+                    finalize(ev, 999);
+                }
+            });
+
+            requestAnimationFrame(update);
+        }
+
+        function finalize(ev, diff) {
+            ev.isFinished = true;
+            let msg = "MISS";
+            let color = "#ff4444";
+            if (Math.abs(diff) < 80) { msg = "PERFECT"; color = "#00ffcc"; }
+            else if (Math.abs(diff) < 150) { msg = "GREAT"; color = "#ffcc00"; }
+
+            // 오차 시간 표시 복구
+            const logEl = document.getElementById('log');
+            const offsetText = (diff === 999) ? "" : `<span class="ms-offset">${Math.round(diff)}ms</span>`;
+            logEl.innerHTML = `<span style="color:${color}">${msg}</span>${offsetText}`;
+
+            document.getElementById('overlay-value').style.display = 'none';
+            activeEvents = activeEvents.filter(a => a !== ev);
+            playBeep(msg === "MISS" ? 200 : 880, 0.1, 0.2);
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if (e.code !== 'Space' || e.repeat) return;
+            if (!isStarted) { isStarted = true; audioCtx.resume(); update(); return; }
+
+            const hitTime = audioCtx.currentTime * 1000;
+            const ev = activeEvents.find(a => !a.isFinished && !a.isHolding);
+            if (!ev) return;
+
+            const diff = hitTime - ev.time;
+            if (Math.abs(diff) < 400) {
+                if (ev.duration || ev.velocity) {
+                    ev.isHolding = true;
+                    ev.pressStartTime = hitTime;
+                    if (ev.velocity) {
+                        const a = 0.5 * ACCELERATION;
+                        const b = INITIAL_SPEED;
+                        const c = -ev.velocity;
+                        ev.targetChargeTime = (-b + Math.sqrt(b * b - 4 * a * c)) / (2 * a);
+                    }
+                } else {
+                    finalize(ev, diff);
+                }
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (e.code !== 'Space') return;
+            const ev = activeEvents.find(a => a.isHolding);
+            if (ev) {
+                const relTime = audioCtx.currentTime * 1000;
+                let diff = ev.velocity ?
+                    (relTime - ev.pressStartTime) - ev.targetChargeTime :
+                    (relTime - (ev.time + (ev.duration * ev.beatDur)));
+                finalize(ev, diff);
+            }
+        });
+    </script>
+</body>
+
+</html>
