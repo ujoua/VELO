@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>VELO City - Offset Restored</title>
+    <title>VELO City - Auto Audio</title>
     <style>
         * {
             -webkit-tap-highlight-color: transparent;
@@ -91,18 +91,11 @@
             font-weight: bold;
         }
 
-        /* 오차값 스타일 */
         .ms-offset {
             font-size: 1.2rem;
             margin-left: 10px;
             opacity: 0.8;
             font-family: monospace;
-        }
-
-        .hint {
-            color: #888;
-            font-size: 0.9rem;
-            margin-top: 15px;
         }
     </style>
 </head>
@@ -110,7 +103,7 @@
 <body>
 
     <h1>VELO City</h1>
-    <div id="log">TAP TO START</div>
+    <div id="log">LOADING MUSIC...</div>
 
     <div id="display">
         <div id="overlay-value">0</div>
@@ -124,6 +117,12 @@
     </div>
 
     <script>
+        /**
+         * 설정 영역
+         */
+        const MUSIC_URL = 'data/spring-vivaldi.mp3'; // 불러올 음악 파일 경로를 여기에 적으세요.
+        const NOTES_JSON_URL = 'data/spring-vivaldi.json'; // 노트 데이터 경로
+
         const AudioContext = window.AudioContext || window.webkitAudioContext;
         const audioCtx = new AudioContext();
 
@@ -131,14 +130,32 @@
         const ACCELERATION = 0.00015;
 
         let notesData = [];
-        fetch('data/notes.json')
-            .then(res => res.json())
-            .then(data => {
-                notesData = data;
-            });
-
-        let activeEvents = [];
+        let musicBuffer = null;
+        let musicSource = null;
+        let startTime = 0; // 음악 재생이 시작된 AudioContext 시간
         let isStarted = false;
+        let activeEvents = [];
+
+        // 1. 노트 데이터 로드
+        fetch(NOTES_JSON_URL)
+            .then(res => res.json())
+            .then(data => { notesData = data; })
+            .catch(err => console.error("Notes load error:", err));
+
+        // 2. 음악 파일 로드 함수
+        async function initAudio() {
+            try {
+                const response = await fetch(MUSIC_URL);
+                const arrayBuffer = await response.arrayBuffer();
+                musicBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+                document.getElementById('log').innerText = "TAP TO START";
+            } catch (e) {
+                document.getElementById('log').innerText = "MUSIC ERROR";
+                console.error("Audio init error:", e);
+            }
+        }
+
+        initAudio();
 
         function playBeep(freq, vol = 0.1, dur = 0.1) {
             if (audioCtx.state !== 'running') return;
@@ -153,10 +170,13 @@
 
         function update() {
             if (!isStarted) return;
-            const now = audioCtx.currentTime * 1000;
+
+            // 현재 흐른 시간 계산 (단위: ms)
+            const now = (audioCtx.currentTime - startTime) * 1000;
             const boxes = document.querySelectorAll('.rythm-box');
             const overlay = document.getElementById('overlay-value');
 
+            // 큐에서 노트를 꺼내 활성 이벤트 리스트에 추가
             if (notesData.length > 0) {
                 const nextData = notesData[0];
                 const beatDur = 60000 / nextData.bpm;
@@ -172,8 +192,13 @@
                 }
             }
 
-            boxes.forEach(box => { box.classList.remove('active', 'preview-hold', 'preview-vel'); box.innerText = parseInt(box.dataset.index) + 1; });
+            // 그래픽 초기화
+            boxes.forEach(box => {
+                box.classList.remove('active', 'preview-hold', 'preview-vel');
+                box.innerText = parseInt(box.dataset.index) + 1;
+            });
 
+            // 우측 예고(Preview) 처리
             const previewTargets = activeEvents.filter(ev => !ev.isFinished && !ev.isHolding && now >= ev.time - (ev.beatDur * 3.5) && now < ev.time).sort((a, b) => a.time - b.time);
             if (previewTargets.length > 0) {
                 const target = previewTargets[0];
@@ -182,15 +207,21 @@
                 else if (target.velocity) { lastBox.classList.add('preview-vel'); lastBox.innerText = `VAL(${target.velocity})`; }
             }
 
+            // 각 활성 노트 업데이트
             activeEvents.forEach(ev => {
                 if (ev.isFinished) return;
                 const elapsed = now - ev.startTime;
                 const currentBeat = Math.floor(elapsed / ev.beatDur);
+
                 if (!ev.isHolding && currentBeat <= 6) {
-                    if (currentBeat > ev.lastPlayedBeat) { ev.lastPlayedBeat = currentBeat; if (currentBeat >= 0) playBeep(440); }
+                    if (currentBeat > ev.lastPlayedBeat) {
+                        ev.lastPlayedBeat = currentBeat;
+                        if (currentBeat >= 0) playBeep(440, 0.05);
+                    }
                     const targetBox = boxes[currentBeat];
                     if (targetBox) targetBox.classList.add('active');
                 }
+
                 if (ev.isHolding) {
                     overlay.style.display = 'block';
                     const hElapsed = now - ev.pressStartTime;
@@ -200,10 +231,16 @@
                         overlay.style.color = "#bc00ff";
                     } else {
                         const hBeat = Math.floor(hElapsed / ev.beatDur);
-                        if (hBeat > ev.holdBeatCounter) { ev.holdBeatCounter = hBeat; overlay.innerText = ev.holdBeatCounter; playBeep(660); }
+                        if (hBeat > ev.holdBeatCounter) {
+                            ev.holdBeatCounter = hBeat;
+                            overlay.innerText = ev.holdBeatCounter;
+                            playBeep(660, 0.05);
+                        }
                         overlay.style.color = "#ffeb3b";
                     }
                 }
+
+                // 판정 범위 벗어난 미스 처리
                 if (!ev.isHolding && now > ev.time + 250) { finalize(ev, 999); }
             });
             requestAnimationFrame(update);
@@ -214,11 +251,9 @@
             let msg = "MISS";
             let color = "#ff4444";
 
-            // 판정 로직
             if (Math.abs(diff) < 80) { msg = "PERFECT"; color = "#00ffcc"; }
             else if (Math.abs(diff) < 150) { msg = "GREAT"; color = "#ffcc00"; }
 
-            // 로그에 오차값(ms) 표시 복구
             const logEl = document.getElementById('log');
             const offsetText = (diff === 999) ? "" : `<span class="ms-offset" style="color:${color}">${Math.round(diff)}ms</span>`;
             logEl.innerHTML = `<span style="color:${color}">${msg}</span>${offsetText}`;
@@ -232,11 +267,29 @@
         async function handleStart(e) {
             if (e.type === 'keydown' && (e.code !== 'Space' || e.repeat)) return;
             if (e.cancelable) e.preventDefault();
+
             if (audioCtx.state === 'suspended') await audioCtx.resume();
 
-            if (!isStarted) { isStarted = true; document.getElementById('log').innerText = "START!"; requestAnimationFrame(update); return; }
+            // 게임 및 음악 시작
+            if (!isStarted) {
+                if (!musicBuffer) return; // 아직 로딩 중이면 무시
 
-            const hitTime = audioCtx.currentTime * 1000;
+                isStarted = true;
+                document.getElementById('log').innerText = "GO!";
+
+                musicSource = audioCtx.createBufferSource();
+                musicSource.buffer = musicBuffer;
+                musicSource.connect(audioCtx.destination);
+
+                startTime = audioCtx.currentTime;
+                musicSource.start(0);
+
+                requestAnimationFrame(update);
+                return;
+            }
+
+            // 노트 타격 처리
+            const hitTime = (audioCtx.currentTime - startTime) * 1000;
             const ev = activeEvents.find(a => !a.isFinished && !a.isHolding && Math.abs(hitTime - a.time) < 400);
             if (!ev) return;
 
@@ -256,7 +309,7 @@
         function handleEnd(e) {
             const ev = activeEvents.find(a => a.isHolding);
             if (ev) {
-                const relTime = audioCtx.currentTime * 1000;
+                const relTime = (audioCtx.currentTime - startTime) * 1000;
                 let diff = ev.velocity ? (relTime - ev.pressStartTime) - ev.targetChargeTime : (relTime - (ev.time + (ev.duration * ev.beatDur)));
                 finalize(ev, diff);
             }
