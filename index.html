@@ -130,12 +130,12 @@
         const INITIAL_SPEED = 0.02;
         const ACCELERATION = 0.00015;
 
-        const rhythmData = [
-            { "time": 3000, "bpm": 120 },
-            { "time": 3880, "bpm": 120, "duration": 2 },
-            { "time": 5000, "bpm": 120, "velocity": 200 },
-            { "time": 7000, "bpm": 120 }
-        ];
+        let notesData = [];
+        fetch('data/notes.json')
+            .then(res => res.json())
+            .then(data => {
+                notesData = data;
+            });
 
         let activeEvents = [];
         let isStarted = false;
@@ -157,11 +157,11 @@
             const boxes = document.querySelectorAll('.rythm-box');
             const overlay = document.getElementById('overlay-value');
 
-            if (rhythmData.length > 0) {
-                const nextData = rhythmData[0];
+            if (notesData.length > 0) {
+                const nextData = notesData[0];
                 const beatDur = 60000 / nextData.bpm;
                 if (now >= nextData.time - (beatDur * 6)) {
-                    const ev = rhythmData.shift();
+                    const ev = notesData.shift();
                     ev.beatDur = beatDur;
                     ev.startTime = ev.time - (beatDur * 6);
                     ev.isFinished = false;
