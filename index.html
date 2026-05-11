@@ -224,6 +224,7 @@
             logEl.innerHTML = `<span style="color:${color}">${msg}</span>${offsetText}`;
 
             document.getElementById('overlay-value').style.display = 'none';
+            document.getElementById('overlay-value').innerText = "0";
             activeEvents = activeEvents.filter(a => a !== ev);
             playBeep(msg === "MISS" ? 200 : 880, 0.1, 0.2);
         }
