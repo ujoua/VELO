@@ -3,18 +3,29 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>VELO City - Precise Preview</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>VELO City - Offset Restored</title>
     <style>
+        * {
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
         body {
             background: #121212;
             color: white;
             font-family: sans-serif;
             text-align: center;
-            margin-top: 50px;
+            margin: 0;
+            padding-top: 50px;
+            overflow: hidden;
+            touch-action: none;
         }
 
         #display {
-            width: 800px;
+            width: 95%;
+            max-width: 800px;
             height: 180px;
             margin: 20px auto;
             border: 3px solid #333;
@@ -24,21 +35,20 @@
             display: flex;
             justify-content: space-around;
             align-items: center;
-            padding: 0 10px;
+            padding: 0 5px;
         }
 
         .rythm-box {
-            width: 90px;
+            width: 13%;
             height: 130px;
             border: 2px solid #444;
             border-radius: 8px;
-            transition: all 0.05s ease;
             background: rgba(255, 255, 255, 0.05);
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            font-size: 1.5rem;
+            font-size: 1.1rem;
             font-weight: bold;
             color: #444;
             position: relative;
@@ -48,23 +58,17 @@
             background: #fff;
             border-color: #fff;
             color: #121212;
-            box-shadow: 0 0 20px #fff;
-            transform: scale(1.05);
+            box-shadow: 0 0 15px #fff;
         }
 
-        /* 예고 스타일 강화 */
         .rythm-box[data-index="6"].preview-hold {
             color: #ffeb3b;
             border-color: #ffeb3b;
-            border-width: 4px;
-            box-shadow: inset 0 0 10px #ffeb3b;
         }
 
         .rythm-box[data-index="6"].preview-vel {
             color: #bc00ff;
             border-color: #bc00ff;
-            border-width: 4px;
-            box-shadow: inset 0 0 10px #bc00ff;
         }
 
         #overlay-value {
@@ -72,33 +76,41 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            font-size: 5rem;
+            font-size: 4rem;
             font-weight: 900;
             z-index: 20;
             display: none;
             pointer-events: none;
-            text-shadow: 0 0 30px rgba(0, 0, 0, 1);
+            text-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
         }
 
         #log {
-            font-size: 2rem;
+            font-size: 2.2rem;
             margin-top: 20px;
             min-height: 1.5em;
             font-weight: bold;
         }
 
+        /* 오차값 스타일 */
         .ms-offset {
             font-size: 1.2rem;
             margin-left: 10px;
             opacity: 0.8;
+            font-family: monospace;
+        }
+
+        .hint {
+            color: #888;
+            font-size: 0.9rem;
+            margin-top: 15px;
         }
     </style>
 </head>
 
 <body>
 
-    <h1>VELO City (Precise Logic)</h1>
-    <div id="log">READY</div>
+    <h1>VELO City</h1>
+    <div id="log">TAP TO START</div>
 
     <div id="display">
         <div id="overlay-value">0</div>
@@ -112,15 +124,16 @@
     </div>
 
     <script>
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        const audioCtx = new AudioContext();
+
         const INITIAL_SPEED = 0.02;
         const ACCELERATION = 0.00015;
 
-        // 따닥따닥 붙어있는 노트 시나리오 추가
         const rhythmData = [
             { "time": 3000, "bpm": 120 },
-            { "time": 3880, "bpm": 120, "duration": 2 }, // 매우 근접
-            { "time": 5500, "bpm": 120, "velocity": 200 }, // 연달아 등장
+            { "time": 3880, "bpm": 120, "duration": 2 },
+            { "time": 5000, "bpm": 120, "velocity": 200 },
             { "time": 7000, "bpm": 120 }
         ];
 
@@ -128,6 +141,7 @@
         let isStarted = false;
 
         function playBeep(freq, vol = 0.1, dur = 0.1) {
+            if (audioCtx.state !== 'running') return;
             const osc = audioCtx.createOscillator();
             const gain = audioCtx.createGain();
             osc.connect(gain); gain.connect(audioCtx.destination);
@@ -138,11 +152,11 @@
         }
 
         function update() {
+            if (!isStarted) return;
             const now = audioCtx.currentTime * 1000;
             const boxes = document.querySelectorAll('.rythm-box');
             const overlay = document.getElementById('overlay-value');
 
-            // 1. 노트 생성 로직
             if (rhythmData.length > 0) {
                 const nextData = rhythmData[0];
                 const beatDur = 60000 / nextData.bpm;
@@ -158,46 +172,25 @@
                 }
             }
 
-            // 2. UI 초기화
-            boxes.forEach(box => {
-                box.classList.remove('active', 'preview-hold', 'preview-vel');
-                box.innerText = parseInt(box.dataset.index) + 1;
-            });
+            boxes.forEach(box => { box.classList.remove('active', 'preview-hold', 'preview-vel'); box.innerText = parseInt(box.dataset.index) + 1; });
 
-            // 3. 예고 시스템을 위한 타겟 선정 (가장 임박한 미처리 노트 찾기)
-            // 현재 시간이 예고 구간(판정 3박자 전 ~ 판정 시점)에 있는 노트들을 시간순 정렬
-            const previewTargets = activeEvents
-                .filter(ev => !ev.isFinished && !ev.isHolding && now >= ev.time - (ev.beatDur * 3.5) && now < ev.time)
-                .sort((a, b) => a.time - b.time);
-
+            const previewTargets = activeEvents.filter(ev => !ev.isFinished && !ev.isHolding && now >= ev.time - (ev.beatDur * 3.5) && now < ev.time).sort((a, b) => a.time - b.time);
             if (previewTargets.length > 0) {
-                const target = previewTargets[0]; // 가장 먼저 처리해야 할 노트
+                const target = previewTargets[0];
                 const lastBox = boxes[6];
-                if (target.duration) {
-                    lastBox.classList.add('preview-hold');
-                    lastBox.innerText = `HOLD(${target.duration})`;
-                } else if (target.velocity) {
-                    lastBox.classList.add('preview-vel');
-                    lastBox.innerText = `VAL(${target.velocity})`;
-                }
+                if (target.duration) { lastBox.classList.add('preview-hold'); lastBox.innerText = `HOLD(${target.duration})`; }
+                else if (target.velocity) { lastBox.classList.add('preview-vel'); lastBox.innerText = `VAL(${target.velocity})`; }
             }
 
-            // 4. 개별 노트 업데이트 (점등 및 소리)
             activeEvents.forEach(ev => {
                 if (ev.isFinished) return;
                 const elapsed = now - ev.startTime;
                 const currentBeat = Math.floor(elapsed / ev.beatDur);
-
                 if (!ev.isHolding && currentBeat <= 6) {
-                    if (currentBeat > ev.lastPlayedBeat) {
-                        ev.lastPlayedBeat = currentBeat;
-                        playBeep(440);
-                    }
+                    if (currentBeat > ev.lastPlayedBeat) { ev.lastPlayedBeat = currentBeat; if (currentBeat >= 0) playBeep(440); }
                     const targetBox = boxes[currentBeat];
                     if (targetBox) targetBox.classList.add('active');
                 }
-
-                // 가속/홀딩 중 UI
                 if (ev.isHolding) {
                     overlay.style.display = 'block';
                     const hElapsed = now - ev.pressStartTime;
@@ -207,20 +200,12 @@
                         overlay.style.color = "#bc00ff";
                     } else {
                         const hBeat = Math.floor(hElapsed / ev.beatDur);
-                        if (hBeat > ev.holdBeatCounter) {
-                            ev.holdBeatCounter = hBeat;
-                            overlay.innerText = ev.holdBeatCounter;
-                            playBeep(660);
-                        }
+                        if (hBeat > ev.holdBeatCounter) { ev.holdBeatCounter = hBeat; overlay.innerText = ev.holdBeatCounter; playBeep(660); }
                         overlay.style.color = "#ffeb3b";
                     }
                 }
-
-                if (!ev.isHolding && now > ev.time + 250) {
-                    finalize(ev, 999);
-                }
+                if (!ev.isHolding && now > ev.time + 250) { finalize(ev, 999); }
             });
-
             requestAnimationFrame(update);
         }
 
@@ -228,11 +213,14 @@
             ev.isFinished = true;
             let msg = "MISS";
             let color = "#ff4444";
+
+            // 판정 로직
             if (Math.abs(diff) < 80) { msg = "PERFECT"; color = "#00ffcc"; }
             else if (Math.abs(diff) < 150) { msg = "GREAT"; color = "#ffcc00"; }
 
+            // 로그에 오차값(ms) 표시 복구
             const logEl = document.getElementById('log');
-            const offsetText = (diff === 999) ? "" : `<span class="ms-offset">${Math.round(diff)}ms</span>`;
+            const offsetText = (diff === 999) ? "" : `<span class="ms-offset" style="color:${color}">${Math.round(diff)}ms</span>`;
             logEl.innerHTML = `<span style="color:${color}">${msg}</span>${offsetText}`;
 
             document.getElementById('overlay-value').style.display = 'none';
@@ -240,12 +228,15 @@
             playBeep(msg === "MISS" ? 200 : 880, 0.1, 0.2);
         }
 
-        window.addEventListener('keydown', (e) => {
-            if (e.code !== 'Space' || e.repeat) return;
-            if (!isStarted) { isStarted = true; audioCtx.resume(); update(); return; }
+        async function handleStart(e) {
+            if (e.type === 'keydown' && (e.code !== 'Space' || e.repeat)) return;
+            if (e.cancelable) e.preventDefault();
+            if (audioCtx.state === 'suspended') await audioCtx.resume();
+
+            if (!isStarted) { isStarted = true; document.getElementById('log').innerText = "START!"; requestAnimationFrame(update); return; }
 
             const hitTime = audioCtx.currentTime * 1000;
-            const ev = activeEvents.find(a => !a.isFinished && !a.isHolding);
+            const ev = activeEvents.find(a => !a.isFinished && !a.isHolding && Math.abs(hitTime - a.time) < 400);
             if (!ev) return;
 
             const diff = hitTime - ev.time;
@@ -255,27 +246,25 @@
                 ev.isHolding = true;
                 ev.pressStartTime = hitTime;
                 if (ev.velocity) {
-                    const a = 0.5 * ACCELERATION;
-                    const b = INITIAL_SPEED;
-                    const c = -ev.velocity;
+                    const a = 0.5 * ACCELERATION, b = INITIAL_SPEED, c = -ev.velocity;
                     ev.targetChargeTime = (-b + Math.sqrt(b * b - 4 * a * c)) / (2 * a);
                 }
-            } else {
-                finalize(ev, diff);
-            }
-        });
+            } else { finalize(ev, diff); }
+        }
 
-        window.addEventListener('keyup', (e) => {
-            if (e.code !== 'Space') return;
+        function handleEnd(e) {
             const ev = activeEvents.find(a => a.isHolding);
             if (ev) {
                 const relTime = audioCtx.currentTime * 1000;
-                let diff = ev.velocity ?
-                    (relTime - ev.pressStartTime) - ev.targetChargeTime :
-                    (relTime - (ev.time + (ev.duration * ev.beatDur)));
+                let diff = ev.velocity ? (relTime - ev.pressStartTime) - ev.targetChargeTime : (relTime - (ev.time + (ev.duration * ev.beatDur)));
                 finalize(ev, diff);
             }
-        });
+        }
+
+        window.addEventListener('keydown', handleStart);
+        window.addEventListener('keyup', handleEnd);
+        window.addEventListener('touchstart', handleStart, { passive: false });
+        window.addEventListener('touchend', handleEnd, { passive: false });
     </script>
 </body>
 
