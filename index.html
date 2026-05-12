@@ -102,7 +102,7 @@
             font-size: 0.9rem;
         }
 
-        /* [3] 기존 게임 화면 스타일 */
+        /* [3] 게임 화면 */
         #game-screen {
             padding-top: 50px;
         }
@@ -189,6 +189,63 @@
             font-family: monospace;
         }
 
+        /* [4] 결과 화면 */
+        #result-screen {
+            background: rgba(0, 0, 0, 0.95);
+        }
+
+        .result-container {
+            background: #1e1e1e;
+            padding: 25px 40px;
+            border-radius: 20px;
+            border: 2px solid #bc00ff;
+            box-shadow: 0 0 30px rgba(188, 0, 255, 0.3);
+            min-width: 340px;
+        }
+
+        #res-song-title {
+            font-size: 1.6rem;
+            font-weight: bold;
+            margin: 10px 0;
+            color: #fff;
+            border-bottom: 2px solid #333;
+            padding-bottom: 10px;
+        }
+
+        #res-rank {
+            font-size: 6rem;
+            font-weight: 900;
+            margin: 5px 0;
+            text-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
+            font-style: italic;
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 1.3rem;
+            margin: 8px 0;
+            border-bottom: 1px solid #333;
+            padding-bottom: 5px;
+        }
+
+        .back-btn {
+            margin-top: 25px;
+            padding: 15px 40px;
+            background: #bc00ff;
+            color: white;
+            border: none;
+            border-radius: 30px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .back-btn:active {
+            transform: scale(0.9);
+        }
+
         @keyframes blink {
 
             0%,
@@ -214,9 +271,7 @@
     <!-- 곡 선택 화면 -->
     <div id="select-screen" class="screen">
         <h2 style="margin-bottom: 20px; letter-spacing: 2px;">SELECT MUSIC</h2>
-        <div class="song-list" id="song-list">
-            <!-- songs.json 데이터가 여기에 렌더링됨 -->
-        </div>
+        <div class="song-list" id="song-list"></div>
     </div>
 
     <!-- 게임 화면 -->
@@ -235,47 +290,53 @@
         </div>
     </div>
 
+    <!-- 결과 화면 -->
+    <div id="result-screen" class="screen">
+        <div class="result-container">
+            <h2 id="res-title" style="color:#bc00ff; font-size: 1.2rem; margin: 0; opacity: 0.8;">RESULT</h2>
+            <div id="res-song-title">Music Title</div>
+            <div id="res-rank">S</div>
+            <div class="stat-row"><span>PERFECT</span><span id="res-perfect" style="color:#00ffcc">0</span></div>
+            <div class="stat-row"><span>GREAT</span><span id="res-great" style="color:#ffcc00">0</span></div>
+            <div class="stat-row"><span>MISS</span><span id="res-miss" style="color:#ff4444">0</span></div>
+            <button class="back-btn" onclick="backToSelect()">MUSIC LIST</button>
+        </div>
+    </div>
+
     <script>
-        // --- 전역 변수 설정 ---
         let songsData = [];
         let currentMusicUrl = '';
         let currentNotesUrl = '';
-
         let notesData = [];
         let musicBuffer = null;
         let musicSource = null;
         let startTime = 0;
         let isStarted = false;
+        let isGameOver = false;
         let activeEvents = [];
-
-        // 터치/플릭 관련
+        let gameStats = { perfect: 0, great: 0, miss: 0 };
         let touchOrigin = { x: 0, y: 0, t: 0 };
         let currentFlickVal = 0;
         let fadeTimeout = null;
 
         const AudioContext = window.AudioContext || window.webkitAudioContext;
         const audioCtx = new AudioContext();
-
         const INITIAL_SPEED = 0.000001;
         const ACCELERATION = 0.00025;
         const SENSITIVITY = 120;
 
-        // --- 화면 전환 및 데이터 로드 ---
         async function showSelectScreen() {
             if (audioCtx.state === 'suspended') await audioCtx.resume();
-
             document.getElementById('start-screen').classList.remove('active-screen');
+            document.getElementById('result-screen').classList.remove('active-screen');
             document.getElementById('select-screen').classList.add('active-screen');
 
-            // 곡 목록 로드 (처음 한 번만)
             if (songsData.length === 0) {
                 try {
                     const res = await fetch('data/songs.json');
                     songsData = await res.json();
                     renderSongList();
-                } catch (e) {
-                    console.error("songs.json 로드 실패:", e);
-                }
+                } catch (e) { console.error("songs.json 로드 실패:", e); }
             }
         }
 
@@ -293,36 +354,83 @@
             currentMusicUrl = mUrl;
             currentNotesUrl = jUrl;
             document.getElementById('game-title').innerText = title;
-
             document.getElementById('select-screen').classList.remove('active-screen');
             document.getElementById('game-screen').classList.add('active-screen');
-
             await initGame();
         }
 
         async function initGame() {
             isStarted = false;
+            isGameOver = false;
             activeEvents = [];
+            gameStats = { perfect: 0, great: 0, miss: 0 };
             document.getElementById('log').innerText = "LOADING MUSIC...";
-
             try {
-                // 1. 노트 로드
                 const nRes = await fetch(currentNotesUrl);
                 notesData = await nRes.json();
-
-                // 2. 오디오 로드
                 const aRes = await fetch(currentMusicUrl);
                 const arrayBuffer = await aRes.arrayBuffer();
                 musicBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-
                 document.getElementById('log').innerText = "TAP TO START";
             } catch (e) {
                 document.getElementById('log').innerText = "LOAD ERROR";
-                console.error(e);
             }
         }
 
-        // --- 게임 엔진 (기존 기능 유지) ---
+        function backToSelect() {
+            isStarted = false;
+            if (musicSource) { try { musicSource.stop(); } catch (e) { } }
+            showSelectScreen();
+        }
+
+        function showResult() {
+            isStarted = false;
+            document.getElementById('game-screen').classList.remove('active-screen');
+            document.getElementById('result-screen').classList.add('active-screen');
+
+            // 곡 제목 설정
+            const currentTitle = document.getElementById('game-title').innerText;
+            document.getElementById('res-song-title').innerText = currentTitle;
+
+            const notPerfect = gameStats.great + gameStats.miss;
+            let rank = "F";
+            let rankColor = "#ff4444";
+            let titleText = "RESULT";
+
+            if (isGameOver || gameStats.miss > 8) {
+                rank = "F";
+                rankColor = "#ff4444";
+                titleText = "GAME OVER";
+            } else {
+                if (notPerfect === 0) { rank = "S"; rankColor = "#00ffcc"; }
+                else if (notPerfect <= 2) { rank = "A"; rankColor = "#ffeb3b"; }
+                else if (notPerfect <= 4) { rank = "B"; rankColor = "#ffcc00"; }
+                else if (notPerfect <= 6) { rank = "C"; rankColor = "#ff9800"; }
+                else { rank = "D"; rankColor = "#888"; }
+            }
+
+            const rankEl = document.getElementById('res-rank');
+            rankEl.innerText = rank;
+            rankEl.style.color = rankColor;
+            document.getElementById('res-title').innerText = titleText;
+
+            document.getElementById('res-perfect').innerText = gameStats.perfect;
+            document.getElementById('res-great').innerText = gameStats.great;
+            document.getElementById('res-miss').innerText = gameStats.miss;
+        }
+
+        function triggerGameOver() {
+            if (isGameOver) return;
+            isGameOver = true;
+            isStarted = false;
+            if (musicSource) {
+                musicSource.onended = null;
+                try { musicSource.stop(); } catch (e) { }
+            }
+            playBeep(100, 0.3, 0.5);
+            showResult();
+        }
+
         function playBeep(freq, vol = 0.1, dur = 0.1) {
             if (audioCtx.state !== 'running') return;
             const osc = audioCtx.createOscillator();
@@ -335,8 +443,7 @@
         }
 
         function update() {
-            if (!isStarted) return;
-
+            if (!isStarted || isGameOver) return;
             const now = (audioCtx.currentTime - startTime) * 1000;
             const boxes = document.querySelectorAll('.rythm-box');
             const overlay = document.getElementById('overlay-value');
@@ -361,8 +468,7 @@
                 box.innerText = parseInt(box.dataset.index) + 1;
             });
 
-            const previewDelay = 1000;
-            const previewTargets = activeEvents.filter(ev => !ev.isFinished && !ev.isHolding && now >= ev.time - (ev.beatDur * 3.5) + previewDelay && now < ev.time).sort((a, b) => a.time - b.time);
+            const previewTargets = activeEvents.filter(ev => !ev.isFinished && !ev.isHolding && now >= ev.time - (ev.beatDur * 3.5) + 1000 && now < ev.time).sort((a, b) => a.time - b.time);
             if (previewTargets.length > 0) {
                 const target = previewTargets[0];
                 const lastBox = boxes[6];
@@ -388,7 +494,6 @@
                     clearTimeout(fadeTimeout);
                     overlay.classList.remove('fade-out');
                     overlay.style.display = 'block';
-
                     const hElapsed = now - ev.pressStartTime;
                     if (ev.velocity) {
                         const displayVal = ev.isFlickMode ? currentFlickVal : (INITIAL_SPEED * hElapsed) + (0.5 * ACCELERATION * hElapsed * hElapsed);
@@ -413,8 +518,18 @@
             ev.isFinished = true;
             let msg = "MISS";
             let color = "#ff4444";
-            if (Math.abs(diff) < 80) { msg = "PERFECT"; color = "#00ffcc"; }
-            else if (Math.abs(diff) < 150) { msg = "GREAT"; color = "#ffcc00"; }
+
+            if (Math.abs(diff) < 80) {
+                msg = "PERFECT"; color = "#00ffcc"; gameStats.perfect++;
+            } else if (Math.abs(diff) < 150) {
+                msg = "GREAT"; color = "#ffcc00"; gameStats.great++;
+            } else {
+                gameStats.miss++;
+                if (gameStats.miss > 8) {
+                    triggerGameOver();
+                    return;
+                }
+            }
 
             const logEl = document.getElementById('log');
             const offsetText = (diff === 999) ? "" : `<span class="ms-offset" style="color:${color}">${Math.round(diff)}ms</span>`;
@@ -435,8 +550,8 @@
 
         async function handleStart(e) {
             if (e.type === 'keydown' && (e.code !== 'Space' || e.repeat)) return;
-            // 게임 화면이 아닐 때는 무시
             if (!document.getElementById('game-screen').classList.contains('active-screen')) return;
+            if (isGameOver) return;
             if (e.cancelable) e.preventDefault();
 
             if (audioCtx.state === 'suspended') await audioCtx.resume();
@@ -447,6 +562,7 @@
                 musicSource = audioCtx.createBufferSource();
                 musicSource.buffer = musicBuffer;
                 musicSource.connect(audioCtx.destination);
+                musicSource.onended = () => { if (!isGameOver) setTimeout(showResult, 1500); };
                 startTime = audioCtx.currentTime;
                 musicSource.start(0);
                 requestAnimationFrame(update);
@@ -463,11 +579,9 @@
                 ev.isHolding = true;
                 ev.pressStartTime = hitTime;
                 ev.isFlickMode = (e.type === 'touchstart' && ev.velocity);
-
                 if (ev.isFlickMode) {
                     const t = e.touches[0];
                     touchOrigin = { x: t.clientX, y: t.clientY, t: hitTime };
-                    currentFlickVal = 0;
                 } else if (ev.velocity) {
                     const a = 0.5 * ACCELERATION, b = INITIAL_SPEED, c = -ev.velocity;
                     ev.targetChargeTime = (-b + Math.sqrt(b * b - 4 * a * c)) / (2 * a);
@@ -476,6 +590,7 @@
         }
 
         function handleMove(e) {
+            if (isGameOver) return;
             const ev = activeEvents.find(a => a.isHolding && a.isFlickMode);
             if (ev && e.touches) {
                 const now = (audioCtx.currentTime - startTime) * 1000;
@@ -487,6 +602,7 @@
         }
 
         function handleEnd(e) {
+            if (isGameOver) return;
             const ev = activeEvents.find(a => a.isHolding);
             if (ev) {
                 const relTime = (audioCtx.currentTime - startTime) * 1000;
