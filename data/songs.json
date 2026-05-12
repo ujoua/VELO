@@ -1,0 +1,29 @@
+[
+    {
+        "id": "hungry",
+        "title": "배고파",
+        "artist": "me and you",
+        "bpm": 120,
+        "musicUrl": "data/배고파.mp3",
+        "jsonUrl": "data/배고파.json",
+        "cover": "assets/hungry.jpg"
+    },
+    {
+        "id": "spring-vivaldi",
+        "title": "사계 ㅡ 봄",
+        "artist": "비발디",
+        "bpm": 128,
+        "musicUrl": "data/spring-vivaldi.mp3",
+        "jsonUrl": "data/spring-vivaldi.json",
+        "cover": "assets/cover1.jpg"
+    },
+    {
+        "id": "another-track",
+        "title": "다른 곡 제목",
+        "artist": "Composer",
+        "bpm": 140,
+        "musicUrl": "data/track2.mp3",
+        "jsonUrl": "data/track2.json",
+        "cover": "assets/cover2.jpg"
+    }
+]
