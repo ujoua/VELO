@@ -4,18 +4,66 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>VELO City - Fade Out UI</title>
+    <title>VELO City - Final Optimized Mobile UI</title>
     <style>
-        /* 기존 스타일 유지 */
-        * { -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
-        body { background: #121212; color: white; font-family: sans-serif; text-align: center; margin: 0; padding-top: 50px; overflow: hidden; touch-action: none; }
-        #display { width: 95%; max-width: 800px; height: 180px; margin: 20px auto; border: 3px solid #333; border-radius: 15px; background: #1e1e1e; position: relative; display: flex; justify-content: space-around; align-items: center; padding: 0 5px; }
-        .rythm-box { width: 13%; height: 130px; border: 2px solid #444; border-radius: 8px; background: rgba(255, 255, 255, 0.05); display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 1.1rem; font-weight: bold; color: #444; position: relative; }
-        .rythm-box.active { background: #fff; border-color: #fff; color: #121212; box-shadow: 0 0 15px #fff; }
+        * {
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        body {
+            background: #121212;
+            color: white;
+            font-family: sans-serif;
+            text-align: center;
+            margin: 0;
+            padding-top: 50px;
+            overflow: hidden;
+            touch-action: none;
+        }
+
+        #display {
+            width: 95%;
+            max-width: 800px;
+            height: 180px;
+            margin: 20px auto;
+            border: 3px solid #333;
+            border-radius: 15px;
+            background: #1e1e1e;
+            position: relative;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            padding: 0 5px;
+        }
+
+        .rythm-box {
+            width: 13%;
+            height: 130px;
+            border: 2px solid #444;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.05);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: #444;
+            position: relative;
+        }
+
+        .rythm-box.active {
+            background: #fff;
+            border-color: #fff;
+            color: #121212;
+            box-shadow: 0 0 15px #fff;
+        }
+
         .rythm-box[data-index="6"].preview-hold { color: #ffeb3b; border-color: #ffeb3b; }
         .rythm-box[data-index="6"].preview-vel { color: #bc00ff; border-color: #bc00ff; }
 
-        /* Overlay 스타일 수정 및 Fade-out 추가 */
         #overlay-value {
             position: absolute;
             top: 50%;
@@ -27,23 +75,36 @@
             display: none;
             pointer-events: none;
             text-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
-            transition: opacity 0.4s ease-out, transform 0.4s ease-out; /* 페이드 아웃 효과 */
+            transition: opacity 0.3s ease-out, transform 0.3s ease-out;
             opacity: 1;
         }
 
         #overlay-value.fade-out {
             opacity: 0;
-            transform: translate(-50%, -60%) scale(1.2); /* 위로 살짝 올라가며 커짐 */
+            transform: translate(-50%, -65%) scale(1.1);
         }
 
-        #log { font-size: 2.2rem; margin-top: 20px; min-height: 1.5em; font-weight: bold; }
-        .ms-offset { font-size: 1.2rem; margin-left: 10px; opacity: 0.8; font-family: monospace; }
+        #log {
+            font-size: 2.2rem;
+            margin-top: 20px;
+            min-height: 1.5em;
+            font-weight: bold;
+        }
+
+        .ms-offset {
+            font-size: 1.2rem;
+            margin-left: 10px;
+            opacity: 0.8;
+            font-family: monospace;
+        }
     </style>
 </head>
 
 <body>
+
     <h1>VELO City</h1>
     <div id="log">LOADING MUSIC...</div>
+
     <div id="display">
         <div id="overlay-value">0</div>
         <div class="rythm-box" data-index="0">1</div>
@@ -58,12 +119,13 @@
     <script>
         const MUSIC_URL = 'data/배고파2 inst.mp3';
         const NOTES_JSON_URL = 'data/배고파2-high.json';
+
         const AudioContext = window.AudioContext || window.webkitAudioContext;
         const audioCtx = new AudioContext();
 
         const INITIAL_SPEED = 0.02;
-        const ACCELERATION = 0.00015;
-        const SENSITIVITY = 50;
+        const ACCELERATION = 0.00045;
+        const SENSITIVITY = 120;
 
         let notesData = [];
         let musicBuffer = null;
@@ -71,11 +133,16 @@
         let startTime = 0;
         let isStarted = false;
         let activeEvents = [];
-        let touchOrigin = { x: 0, y: 0, t: 0 };
-        let currentFlickVal = 0;
-        let fadeTimeout = null; // Fade 관리를 위한 타이머
 
-        fetch(NOTES_JSON_URL).then(res => res.json()).then(data => { notesData = data; });
+        // 터치/플릭 관련 변수
+        let touchOrigin = { x: 0, y: 0, t: 0 };
+        let currentFlickVal = 0; 
+        let fadeTimeout = null;
+
+        fetch(NOTES_JSON_URL)
+            .then(res => res.json())
+            .then(data => { notesData = data; })
+            .catch(err => console.error("Notes load error:", err));
 
         async function initAudio() {
             try {
@@ -83,8 +150,11 @@
                 const arrayBuffer = await response.arrayBuffer();
                 musicBuffer = await audioCtx.decodeAudioData(arrayBuffer);
                 document.getElementById('log').innerText = "TAP TO START";
-            } catch (e) { document.getElementById('log').innerText = "MUSIC ERROR"; }
+            } catch (e) {
+                document.getElementById('log').innerText = "MUSIC ERROR";
+            }
         }
+
         initAudio();
 
         function playBeep(freq, vol = 0.1, dur = 0.1) {
@@ -100,6 +170,7 @@
 
         function update() {
             if (!isStarted) return;
+
             const now = (audioCtx.currentTime - startTime) * 1000;
             const boxes = document.querySelectorAll('.rythm-box');
             const overlay = document.getElementById('overlay-value');
@@ -147,14 +218,15 @@
                 }
 
                 if (ev.isHolding) {
-                    // 홀딩 시작 시 이전 페이드 애니메이션 중단 및 초기화
                     clearTimeout(fadeTimeout);
                     overlay.classList.remove('fade-out');
                     overlay.style.display = 'block';
 
                     const hElapsed = now - ev.pressStartTime;
                     if (ev.velocity) {
-                        overlay.innerText = Math.floor(ev.isFlickMode ? currentFlickVal : (INITIAL_SPEED * hElapsed) + (0.5 * ACCELERATION * hElapsed * hElapsed));
+                        // 모바일 플릭이면 currentFlickVal(이동중 계산됨) 사용, PC면 시간기반 계산
+                        const displayVal = ev.isFlickMode ? currentFlickVal : (INITIAL_SPEED * hElapsed) + (0.5 * ACCELERATION * hElapsed * hElapsed);
+                        overlay.innerText = Math.floor(displayVal);
                         overlay.style.color = "#bc00ff";
                     } else {
                         const hBeat = Math.floor(hElapsed / ev.beatDur);
@@ -166,6 +238,7 @@
                         overlay.style.color = "#ffeb3b";
                     }
                 }
+
                 if (!ev.isHolding && now > ev.time + 250) { finalize(ev, 999); }
             });
             requestAnimationFrame(update);
@@ -173,24 +246,26 @@
 
         function finalize(ev, diff) {
             ev.isFinished = true;
-            let msg = "MISS", color = "#ff4444";
+            let msg = "MISS";
+            let color = "#ff4444";
+
             if (Math.abs(diff) < 80) { msg = "PERFECT"; color = "#00ffcc"; }
             else if (Math.abs(diff) < 150) { msg = "GREAT"; color = "#ffcc00"; }
 
             const logEl = document.getElementById('log');
-            logEl.innerHTML = `<span style="color:${color}">${msg}</span>${(diff === 999) ? "" : `<span class="ms-offset" style="color:${color}">${Math.round(diff)}ms</span>`}`;
+            const offsetText = (diff === 999) ? "" : `<span class="ms-offset" style="color:${color}">${Math.round(diff)}ms</span>`;
+            logEl.innerHTML = `<span style="color:${color}">${msg}</span>${offsetText}`;
 
-            // --- Fade Out 효과 적용 ---
+            // Fade Out 적용
             const overlay = document.getElementById('overlay-value');
             overlay.classList.add('fade-out');
-            
             fadeTimeout = setTimeout(() => {
                 overlay.style.display = 'none';
                 overlay.classList.remove('fade-out');
                 overlay.innerText = "0";
-            }, 400); // CSS transition 시간과 동일하게 설정
+                currentFlickVal = 0; 
+            }, 300);
 
-            currentFlickVal = 0;
             activeEvents = activeEvents.filter(a => a !== ev);
             playBeep(msg === "MISS" ? 200 : 880, 0.1, 0.2);
         }
@@ -198,6 +273,7 @@
         async function handleStart(e) {
             if (e.type === 'keydown' && (e.code !== 'Space' || e.repeat)) return;
             if (e.cancelable) e.preventDefault();
+
             if (audioCtx.state === 'suspended') await audioCtx.resume();
 
             if (!isStarted) {
@@ -222,9 +298,11 @@
                 ev.isHolding = true;
                 ev.pressStartTime = hitTime;
                 ev.isFlickMode = (e.type === 'touchstart' && ev.velocity); 
+
                 if (ev.isFlickMode) {
                     const t = e.touches[0];
                     touchOrigin = { x: t.clientX, y: t.clientY, t: hitTime };
+                    currentFlickVal = 0;
                 } else if (ev.velocity) {
                     const a = 0.5 * ACCELERATION, b = INITIAL_SPEED, c = -ev.velocity;
                     ev.targetChargeTime = (-b + Math.sqrt(b * b - 4 * a * c)) / (2 * a);
@@ -248,11 +326,11 @@
             if (ev) {
                 const relTime = (audioCtx.currentTime - startTime) * 1000;
                 let diff;
-                if (ev.isFlickMode && e.changedTouches) {
-                    const t = e.changedTouches[0];
-                    const dist = Math.sqrt(Math.pow(t.clientX - touchOrigin.x, 2) + Math.pow(t.clientY - touchOrigin.y, 2));
-                    const flickVal = (dist / Math.max(relTime - touchOrigin.t, 10)) * SENSITIVITY;
-                    diff = Math.abs(ev.velocity - flickVal);
+
+                if (ev.isFlickMode) {
+                    // handleMove에서 이미 계산된 currentFlickVal을 판정에 그대로 사용
+                    diff = Math.abs(ev.velocity - currentFlickVal);
+                    diff = Math.pow(diff, 1.2); // 벨로시티는 0~127인데 finalize에서 오차 판정 기준이 150ms라서 diff 그냥 쓸 시 웬만하면 perfect 나오므로 값을 키워야 함.
                 } else {
                     diff = ev.velocity ? (relTime - ev.pressStartTime) - ev.targetChargeTime : (relTime - (ev.time + (ev.duration * ev.beatDur)));
                 }
@@ -267,4 +345,5 @@
         window.addEventListener('touchend', handleEnd, { passive: false });
     </script>
 </body>
+
 </html>
