@@ -4,23 +4,107 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>VELO City - Final Optimized Mobile UI</title>
+    <title>VELO City - Rhythm Web Game</title>
     <style>
         * {
             -webkit-tap-highlight-color: transparent;
             user-select: none;
             -webkit-user-select: none;
+            box-sizing: border-box;
         }
 
         body {
             background: #121212;
             color: white;
-            font-family: sans-serif;
-            text-align: center;
+            font-family: 'Segoe UI', sans-serif;
             margin: 0;
-            padding-top: 50px;
             overflow: hidden;
             touch-action: none;
+            text-align: center;
+        }
+
+        /* 화면 전환용 컨테이너 */
+        .screen {
+            display: none;
+            width: 100vw;
+            height: 100vh;
+            position: absolute;
+            top: 0;
+            left: 0;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .active-screen {
+            display: flex;
+        }
+
+        /* [1] 메인 시작 화면 */
+        #start-screen {
+            background: radial-gradient(circle, #2c003e 0%, #000000 100%);
+        }
+
+        #start-screen h1 {
+            font-size: 5rem;
+            letter-spacing: 15px;
+            margin-bottom: 20px;
+            text-shadow: 0 0 30px #bc00ff;
+            font-style: italic;
+        }
+
+        .tap-msg {
+            font-size: 1.2rem;
+            color: #aaa;
+            animation: blink 1.5s infinite;
+        }
+
+        /* [2] 곡 선택 화면 */
+        #select-screen {
+            background: #121212;
+            padding: 20px;
+        }
+
+        .song-list {
+            width: 95%;
+            max-width: 500px;
+            max-height: 70vh;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            padding: 10px;
+        }
+
+        .song-card {
+            background: #1e1e1e;
+            padding: 20px;
+            border-radius: 12px;
+            border-left: 6px solid #bc00ff;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-align: left;
+        }
+
+        .song-card:active {
+            transform: scale(0.95);
+            background: #2a2a2a;
+        }
+
+        .song-title {
+            font-size: 1.4rem;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .song-info {
+            color: #888;
+            font-size: 0.9rem;
+        }
+
+        /* [3] 기존 게임 화면 스타일 */
+        #game-screen {
+            padding-top: 50px;
         }
 
         #display {
@@ -104,35 +188,58 @@
             opacity: 0.8;
             font-family: monospace;
         }
+
+        @keyframes blink {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.3;
+            }
+        }
     </style>
 </head>
 
 <body>
 
-    <h1>VELO City</h1>
-    <div id="log">LOADING MUSIC...</div>
+    <!-- 메인 화면 -->
+    <div id="start-screen" class="screen active-screen" onclick="showSelectScreen()">
+        <h1>VELO City</h1>
+        <div class="tap-msg">TOUCH TO START</div>
+    </div>
 
-    <div id="display">
-        <div id="overlay-value">0</div>
-        <div class="rythm-box" data-index="0">1</div>
-        <div class="rythm-box" data-index="1">2</div>
-        <div class="rythm-box" data-index="2">3</div>
-        <div class="rythm-box" data-index="3">4</div>
-        <div class="rythm-box" data-index="4">5</div>
-        <div class="rythm-box" data-index="5">6</div>
-        <div class="rythm-box" data-index="6">7</div>
+    <!-- 곡 선택 화면 -->
+    <div id="select-screen" class="screen">
+        <h2 style="margin-bottom: 20px; letter-spacing: 2px;">SELECT MUSIC</h2>
+        <div class="song-list" id="song-list">
+            <!-- songs.json 데이터가 여기에 렌더링됨 -->
+        </div>
+    </div>
+
+    <!-- 게임 화면 -->
+    <div id="game-screen" class="screen">
+        <h1 id="game-title" style="margin: 0; font-size: 1.5rem; opacity: 0.7;">VELO City</h1>
+        <div id="log">LOADING...</div>
+        <div id="display">
+            <div id="overlay-value">0</div>
+            <div class="rythm-box" data-index="0">1</div>
+            <div class="rythm-box" data-index="1">2</div>
+            <div class="rythm-box" data-index="2">3</div>
+            <div class="rythm-box" data-index="3">4</div>
+            <div class="rythm-box" data-index="4">5</div>
+            <div class="rythm-box" data-index="5">6</div>
+            <div class="rythm-box" data-index="6">7</div>
+        </div>
     </div>
 
     <script>
-        const MUSIC_URL = 'data/배고파2 inst.mp3';
-        const NOTES_JSON_URL = 'data/배고파2-high.json';
-
-        const AudioContext = window.AudioContext || window.webkitAudioContext;
-        const audioCtx = new AudioContext();
-
-        const INITIAL_SPEED = 0.02;
-        const ACCELERATION = 0.00045;
-        const SENSITIVITY = 120;
+        // --- 전역 변수 설정 ---
+        let songsData = [];
+        let currentMusicUrl = '';
+        let currentNotesUrl = '';
 
         let notesData = [];
         let musicBuffer = null;
@@ -141,29 +248,81 @@
         let isStarted = false;
         let activeEvents = [];
 
-        // 터치/플릭 관련 변수
+        // 터치/플릭 관련
         let touchOrigin = { x: 0, y: 0, t: 0 };
         let currentFlickVal = 0;
         let fadeTimeout = null;
 
-        fetch(NOTES_JSON_URL)
-            .then(res => res.json())
-            .then(data => { notesData = data; })
-            .catch(err => console.error("Notes load error:", err));
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        const audioCtx = new AudioContext();
 
-        async function initAudio() {
-            try {
-                const response = await fetch(MUSIC_URL);
-                const arrayBuffer = await response.arrayBuffer();
-                musicBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-                document.getElementById('log').innerText = "TAP TO START";
-            } catch (e) {
-                document.getElementById('log').innerText = "MUSIC ERROR";
+        const INITIAL_SPEED = 0.000001;
+        const ACCELERATION = 0.00025;
+        const SENSITIVITY = 120;
+
+        // --- 화면 전환 및 데이터 로드 ---
+        async function showSelectScreen() {
+            if (audioCtx.state === 'suspended') await audioCtx.resume();
+
+            document.getElementById('start-screen').classList.remove('active-screen');
+            document.getElementById('select-screen').classList.add('active-screen');
+
+            // 곡 목록 로드 (처음 한 번만)
+            if (songsData.length === 0) {
+                try {
+                    const res = await fetch('data/songs.json');
+                    songsData = await res.json();
+                    renderSongList();
+                } catch (e) {
+                    console.error("songs.json 로드 실패:", e);
+                }
             }
         }
 
-        initAudio();
+        function renderSongList() {
+            const listEl = document.getElementById('song-list');
+            listEl.innerHTML = songsData.map(song => `
+                <div class="song-card" onclick="selectSong('${song.musicUrl}', '${song.jsonUrl}', '${song.title}')">
+                    <div class="song-title">${song.title}</div>
+                    <div class="song-info">${song.artist} | BPM: ${song.bpm || '???'}</div>
+                </div>
+            `).join('');
+        }
 
+        async function selectSong(mUrl, jUrl, title) {
+            currentMusicUrl = mUrl;
+            currentNotesUrl = jUrl;
+            document.getElementById('game-title').innerText = title;
+
+            document.getElementById('select-screen').classList.remove('active-screen');
+            document.getElementById('game-screen').classList.add('active-screen');
+
+            await initGame();
+        }
+
+        async function initGame() {
+            isStarted = false;
+            activeEvents = [];
+            document.getElementById('log').innerText = "LOADING MUSIC...";
+
+            try {
+                // 1. 노트 로드
+                const nRes = await fetch(currentNotesUrl);
+                notesData = await nRes.json();
+
+                // 2. 오디오 로드
+                const aRes = await fetch(currentMusicUrl);
+                const arrayBuffer = await aRes.arrayBuffer();
+                musicBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+
+                document.getElementById('log').innerText = "TAP TO START";
+            } catch (e) {
+                document.getElementById('log').innerText = "LOAD ERROR";
+                console.error(e);
+            }
+        }
+
+        // --- 게임 엔진 (기존 기능 유지) ---
         function playBeep(freq, vol = 0.1, dur = 0.1) {
             if (audioCtx.state !== 'running') return;
             const osc = audioCtx.createOscillator();
@@ -232,7 +391,6 @@
 
                     const hElapsed = now - ev.pressStartTime;
                     if (ev.velocity) {
-                        // 모바일 플릭이면 currentFlickVal(이동중 계산됨) 사용, PC면 시간기반 계산
                         const displayVal = ev.isFlickMode ? currentFlickVal : (INITIAL_SPEED * hElapsed) + (0.5 * ACCELERATION * hElapsed * hElapsed);
                         overlay.innerText = Math.floor(displayVal);
                         overlay.style.color = "#bc00ff";
@@ -246,7 +404,6 @@
                         overlay.style.color = "#ffeb3b";
                     }
                 }
-
                 if (!ev.isHolding && now > ev.time + 250) { finalize(ev, 999); }
             });
             requestAnimationFrame(update);
@@ -256,7 +413,6 @@
             ev.isFinished = true;
             let msg = "MISS";
             let color = "#ff4444";
-
             if (Math.abs(diff) < 80) { msg = "PERFECT"; color = "#00ffcc"; }
             else if (Math.abs(diff) < 150) { msg = "GREAT"; color = "#ffcc00"; }
 
@@ -264,7 +420,6 @@
             const offsetText = (diff === 999) ? "" : `<span class="ms-offset" style="color:${color}">${Math.round(diff)}ms</span>`;
             logEl.innerHTML = `<span style="color:${color}">${msg}</span>${offsetText}`;
 
-            // Fade Out 적용
             const overlay = document.getElementById('overlay-value');
             overlay.classList.add('fade-out');
             fadeTimeout = setTimeout(() => {
@@ -280,6 +435,8 @@
 
         async function handleStart(e) {
             if (e.type === 'keydown' && (e.code !== 'Space' || e.repeat)) return;
+            // 게임 화면이 아닐 때는 무시
+            if (!document.getElementById('game-screen').classList.contains('active-screen')) return;
             if (e.cancelable) e.preventDefault();
 
             if (audioCtx.state === 'suspended') await audioCtx.resume();
@@ -334,11 +491,9 @@
             if (ev) {
                 const relTime = (audioCtx.currentTime - startTime) * 1000;
                 let diff;
-
                 if (ev.isFlickMode) {
-                    // handleMove에서 이미 계산된 currentFlickVal을 판정에 그대로 사용
                     diff = Math.abs(ev.velocity - currentFlickVal);
-                    diff = Math.pow(diff, 1.2); // 벨로시티는 0~127인데 finalize에서 오차 판정 기준이 150ms라서 diff 그냥 쓸 시 웬만하면 perfect 나오므로 값을 키워야 함.
+                    diff = Math.pow(diff, 1.2);
                 } else {
                     diff = ev.velocity ? (relTime - ev.pressStartTime) - ev.targetChargeTime : (relTime - (ev.time + (ev.duration * ev.beatDur)));
                 }
