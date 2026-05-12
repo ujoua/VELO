@@ -61,8 +61,15 @@
             box-shadow: 0 0 15px #fff;
         }
 
-        .rythm-box[data-index="6"].preview-hold { color: #ffeb3b; border-color: #ffeb3b; }
-        .rythm-box[data-index="6"].preview-vel { color: #bc00ff; border-color: #bc00ff; }
+        .rythm-box[data-index="6"].preview-hold {
+            color: #ffeb3b;
+            border-color: #ffeb3b;
+        }
+
+        .rythm-box[data-index="6"].preview-vel {
+            color: #bc00ff;
+            border-color: #bc00ff;
+        }
 
         #overlay-value {
             position: absolute;
@@ -136,7 +143,7 @@
 
         // 터치/플릭 관련 변수
         let touchOrigin = { x: 0, y: 0, t: 0 };
-        let currentFlickVal = 0; 
+        let currentFlickVal = 0;
         let fadeTimeout = null;
 
         fetch(NOTES_JSON_URL)
@@ -195,7 +202,8 @@
                 box.innerText = parseInt(box.dataset.index) + 1;
             });
 
-            const previewTargets = activeEvents.filter(ev => !ev.isFinished && !ev.isHolding && now >= ev.time - (ev.beatDur * 3.5) && now < ev.time).sort((a, b) => a.time - b.time);
+            const previewDelay = 1000;
+            const previewTargets = activeEvents.filter(ev => !ev.isFinished && !ev.isHolding && now >= ev.time - (ev.beatDur * 3.5) + previewDelay && now < ev.time).sort((a, b) => a.time - b.time);
             if (previewTargets.length > 0) {
                 const target = previewTargets[0];
                 const lastBox = boxes[6];
@@ -263,7 +271,7 @@
                 overlay.style.display = 'none';
                 overlay.classList.remove('fade-out');
                 overlay.innerText = "0";
-                currentFlickVal = 0; 
+                currentFlickVal = 0;
             }, 300);
 
             activeEvents = activeEvents.filter(a => a !== ev);
@@ -297,7 +305,7 @@
             if (ev.duration || ev.velocity) {
                 ev.isHolding = true;
                 ev.pressStartTime = hitTime;
-                ev.isFlickMode = (e.type === 'touchstart' && ev.velocity); 
+                ev.isFlickMode = (e.type === 'touchstart' && ev.velocity);
 
                 if (ev.isFlickMode) {
                     const t = e.touches[0];
