@@ -23,7 +23,6 @@
             text-align: center;
         }
 
-        /* 화면 전환용 컨테이너 */
         .screen {
             display: none;
             width: 100vw;
@@ -84,11 +83,19 @@
             cursor: pointer;
             transition: all 0.2s ease;
             text-align: left;
+            position: relative;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
 
         .song-card:active {
             transform: scale(0.95);
             background: #2a2a2a;
+        }
+
+        .song-main-info {
+            flex: 1;
         }
 
         .song-title {
@@ -100,6 +107,14 @@
         .song-info {
             color: #888;
             font-size: 0.9rem;
+        }
+
+        .best-rank {
+            font-size: 2.2rem;
+            font-weight: 900;
+            font-style: italic;
+            margin-left: 15px;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
         }
 
         /* [3] 게임 화면 */
@@ -262,19 +277,16 @@
 
 <body>
 
-    <!-- 메인 화면 -->
     <div id="start-screen" class="screen active-screen" onclick="showSelectScreen()">
         <h1>VELO City</h1>
         <div class="tap-msg">TOUCH TO START</div>
     </div>
 
-    <!-- 곡 선택 화면 -->
     <div id="select-screen" class="screen">
         <h2 style="margin-bottom: 20px; letter-spacing: 2px;">SELECT MUSIC</h2>
         <div class="song-list" id="song-list"></div>
     </div>
 
-    <!-- 게임 화면 -->
     <div id="game-screen" class="screen">
         <h1 id="game-title" style="margin: 0; font-size: 1.5rem; opacity: 0.7;">VELO City</h1>
         <div id="log">LOADING...</div>
@@ -290,7 +302,6 @@
         </div>
     </div>
 
-    <!-- 결과 화면 -->
     <div id="result-screen" class="screen">
         <div class="result-container">
             <h2 id="res-title" style="color:#bc00ff; font-size: 1.2rem; margin: 0; opacity: 0.8;">RESULT</h2>
@@ -305,6 +316,7 @@
 
     <script>
         let songsData = [];
+        let currentSongId = ''; // 저장용 ID
         let currentMusicUrl = '';
         let currentNotesUrl = '';
         let notesData = [];
@@ -318,6 +330,9 @@
         let touchOrigin = { x: 0, y: 0, t: 0 };
         let currentFlickVal = 0;
         let fadeTimeout = null;
+
+        const rankPriority = { 'S': 6, 'A': 5, 'B': 4, 'C': 3, 'D': 2, 'F': 1, '-': 0 };
+        const rankColors = { 'S': '#00ffcc', 'A': '#ffeb3b', 'B': '#ffcc00', 'C': '#ff9800', 'D': '#888', 'F': '#ff4444' };
 
         const AudioContext = window.AudioContext || window.webkitAudioContext;
         const audioCtx = new AudioContext();
@@ -335,22 +350,31 @@
                 try {
                     const res = await fetch('data/songs.json');
                     songsData = await res.json();
-                    renderSongList();
-                } catch (e) { console.error("songs.json 로드 실패:", e); }
+                } catch (e) { console.error("songs.json 로드 실패"); }
             }
+            renderSongList();
         }
 
         function renderSongList() {
             const listEl = document.getElementById('song-list');
-            listEl.innerHTML = songsData.map(song => `
+            const savedScores = JSON.parse(localStorage.getItem('velo_city_scores') || '{}');
+
+            listEl.innerHTML = songsData.map(song => {
+                const bestRank = savedScores[song.title] || '-';
+                const color = rankColors[bestRank] || '#444';
+                return `
                 <div class="song-card" onclick="selectSong('${song.musicUrl}', '${song.jsonUrl}', '${song.title}')">
-                    <div class="song-title">${song.title}</div>
-                    <div class="song-info">${song.artist} | BPM: ${song.bpm || '???'}</div>
+                    <div class="song-main-info">
+                        <div class="song-title">${song.title}</div>
+                        <div class="song-info">${song.artist} | BPM: ${song.bpm}</div>
+                    </div>
+                    <div class="best-rank" style="color: ${color}">${bestRank}</div>
                 </div>
-            `).join('');
+            `}).join('');
         }
 
         async function selectSong(mUrl, jUrl, title) {
+            currentSongId = title;
             currentMusicUrl = mUrl;
             currentNotesUrl = jUrl;
             document.getElementById('game-title').innerText = title;
@@ -360,21 +384,15 @@
         }
 
         async function initGame() {
-            isStarted = false;
-            isGameOver = false;
-            activeEvents = [];
+            isStarted = false; isGameOver = false; activeEvents = [];
             gameStats = { perfect: 0, great: 0, miss: 0 };
-            document.getElementById('log').innerText = "LOADING MUSIC...";
+            document.getElementById('log').innerText = "LOADING...";
             try {
-                const nRes = await fetch(currentNotesUrl);
-                notesData = await nRes.json();
-                const aRes = await fetch(currentMusicUrl);
-                const arrayBuffer = await aRes.arrayBuffer();
-                musicBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+                const nRes = await fetch(currentNotesUrl); notesData = await nRes.json();
+                const aRes = await fetch(currentMusicUrl); const ab = await aRes.arrayBuffer();
+                musicBuffer = await audioCtx.decodeAudioData(ab);
                 document.getElementById('log').innerText = "TAP TO START";
-            } catch (e) {
-                document.getElementById('log').innerText = "LOAD ERROR";
-            }
+            } catch (e) { document.getElementById('log').innerText = "LOAD ERROR"; }
         }
 
         function backToSelect() {
@@ -383,37 +401,42 @@
             showSelectScreen();
         }
 
+        function saveHighScore(rank) {
+            const savedScores = JSON.parse(localStorage.getItem('velo_city_scores') || '{}');
+            const prevRank = savedScores[currentSongId] || '-';
+
+            if (rankPriority[rank] > rankPriority[prevRank]) {
+                savedScores[currentSongId] = rank;
+                localStorage.setItem('velo_city_scores', JSON.stringify(savedScores));
+            }
+        }
+
         function showResult() {
             isStarted = false;
             document.getElementById('game-screen').classList.remove('active-screen');
             document.getElementById('result-screen').classList.add('active-screen');
-
-            // 곡 제목 설정
-            const currentTitle = document.getElementById('game-title').innerText;
-            document.getElementById('res-song-title').innerText = currentTitle;
+            document.getElementById('res-song-title').innerText = currentSongId;
 
             const notPerfect = gameStats.great + gameStats.miss;
             let rank = "F";
-            let rankColor = "#ff4444";
             let titleText = "RESULT";
 
             if (isGameOver || gameStats.miss > 8) {
-                rank = "F";
-                rankColor = "#ff4444";
-                titleText = "GAME OVER";
+                rank = "F"; titleText = "GAME OVER";
             } else {
-                if (notPerfect === 0) { rank = "S"; rankColor = "#00ffcc"; }
-                else if (notPerfect <= 2) { rank = "A"; rankColor = "#ffeb3b"; }
-                else if (notPerfect <= 4) { rank = "B"; rankColor = "#ffcc00"; }
-                else if (notPerfect <= 6) { rank = "C"; rankColor = "#ff9800"; }
-                else { rank = "D"; rankColor = "#888"; }
+                if (notPerfect === 0) rank = "S";
+                else if (notPerfect <= 2) rank = "A";
+                else if (notPerfect <= 4) rank = "B";
+                else if (notPerfect <= 6) rank = "C";
+                else rank = "D";
             }
+
+            saveHighScore(rank);
 
             const rankEl = document.getElementById('res-rank');
             rankEl.innerText = rank;
-            rankEl.style.color = rankColor;
+            rankEl.style.color = rankColors[rank];
             document.getElementById('res-title').innerText = titleText;
-
             document.getElementById('res-perfect').innerText = gameStats.perfect;
             document.getElementById('res-great').innerText = gameStats.great;
             document.getElementById('res-miss').innerText = gameStats.miss;
@@ -421,12 +444,8 @@
 
         function triggerGameOver() {
             if (isGameOver) return;
-            isGameOver = true;
-            isStarted = false;
-            if (musicSource) {
-                musicSource.onended = null;
-                try { musicSource.stop(); } catch (e) { }
-            }
+            isGameOver = true; isStarted = false;
+            if (musicSource) { musicSource.onended = null; try { musicSource.stop(); } catch (e) { } }
             playBeep(100, 0.3, 0.5);
             showResult();
         }
@@ -455,10 +474,8 @@
                     const ev = notesData.shift();
                     ev.beatDur = beatDur;
                     ev.startTime = ev.time - (beatDur * 6);
-                    ev.isFinished = false;
-                    ev.isHolding = false;
-                    ev.lastPlayedBeat = -1;
-                    ev.holdBeatCounter = 0;
+                    ev.isFinished = false; ev.isHolding = false;
+                    ev.lastPlayedBeat = -1; ev.holdBeatCounter = 0;
                     activeEvents.push(ev);
                 }
             }
@@ -509,39 +526,27 @@
                         overlay.style.color = "#ffeb3b";
                     }
                 }
-                if (!ev.isHolding && now > ev.time + 250) { finalize(ev, 999); }
+                if (!ev.isHolding && now > ev.time + 250) finalize(ev, 999);
             });
             requestAnimationFrame(update);
         }
 
         function finalize(ev, diff) {
             ev.isFinished = true;
-            let msg = "MISS";
-            let color = "#ff4444";
+            let msg = "MISS"; let color = "#ff4444";
 
-            if (Math.abs(diff) < 80) {
-                msg = "PERFECT"; color = "#00ffcc"; gameStats.perfect++;
-            } else if (Math.abs(diff) < 150) {
-                msg = "GREAT"; color = "#ffcc00"; gameStats.great++;
-            } else {
-                gameStats.miss++;
-                if (gameStats.miss > 8) {
-                    triggerGameOver();
-                    return;
-                }
-            }
+            if (Math.abs(diff) < 80) { msg = "PERFECT"; color = "#00ffcc"; gameStats.perfect++; }
+            else if (Math.abs(diff) < 150) { msg = "GREAT"; color = "#ffcc00"; gameStats.great++; }
+            else { gameStats.miss++; if (gameStats.miss > 8) { triggerGameOver(); return; } }
 
             const logEl = document.getElementById('log');
-            const offsetText = (diff === 999) ? "" : `<span class="ms-offset" style="color:${color}">${Math.round(diff)}ms</span>`;
-            logEl.innerHTML = `<span style="color:${color}">${msg}</span>${offsetText}`;
+            logEl.innerHTML = `<span style="color:${color}">${msg}</span>${diff === 999 ? "" : `<span class="ms-offset" style="color:${color}">${Math.round(diff)}ms</span>`}`;
 
             const overlay = document.getElementById('overlay-value');
             overlay.classList.add('fade-out');
             fadeTimeout = setTimeout(() => {
-                overlay.style.display = 'none';
-                overlay.classList.remove('fade-out');
-                overlay.innerText = "0";
-                currentFlickVal = 0;
+                overlay.style.display = 'none'; overlay.classList.remove('fade-out');
+                overlay.innerText = "0"; currentFlickVal = 0;
             }, 300);
 
             activeEvents = activeEvents.filter(a => a !== ev);
@@ -576,8 +581,7 @@
             if (Math.abs(hitTime - ev.time) > 150) { finalize(ev, hitTime - ev.time); return; }
 
             if (ev.duration || ev.velocity) {
-                ev.isHolding = true;
-                ev.pressStartTime = hitTime;
+                ev.isHolding = true; ev.pressStartTime = hitTime;
                 ev.isFlickMode = (e.type === 'touchstart' && ev.velocity);
                 if (ev.isFlickMode) {
                     const t = e.touches[0];
