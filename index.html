@@ -485,7 +485,7 @@
                 box.innerText = parseInt(box.dataset.index) + 1;
             });
 
-            const previewTargets = activeEvents.filter(ev => !ev.isFinished && !ev.isHolding && now >= ev.time - (ev.beatDur * 3.5) + 1000 && now < ev.time).sort((a, b) => a.time - b.time);
+            const previewTargets = activeEvents.filter(ev => !ev.isFinished && !ev.isHolding && now >= ev.time - (ev.beatDur * 3.5) + 50 && now < ev.time).sort((a, b) => a.time - b.time);
             if (previewTargets.length > 0) {
                 const target = previewTargets[0];
                 const lastBox = boxes[6];
