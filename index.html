@@ -18,8 +18,6 @@
             color: white;
             font-family: 'Segoe UI', sans-serif;
             margin: 0;
-            /* overflow: hidden; */
-            /* touch-action: none; */
             text-align: center;
         }
 
@@ -39,7 +37,6 @@
             display: flex;
         }
 
-        /* [1] 메인 시작 화면 */
         #start-screen {
             background: radial-gradient(circle, #2c003e 0%, #000000 100%);
         }
@@ -58,7 +55,6 @@
             animation: blink 1.5s infinite;
         }
 
-        /* [2] 곡 선택 화면 */
         #select-screen {
             background: #121212;
             padding: 20px;
@@ -117,7 +113,6 @@
             text-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
         }
 
-        /* [3] 게임 화면 */
         #game-screen {
             padding-top: 50px;
         }
@@ -140,7 +135,7 @@
         .rythm-box {
             width: 13%;
             height: 130px;
-            border: 2px solid #444;
+            border: 2px solid #333;
             border-radius: 8px;
             background: rgba(255, 255, 255, 0.05);
             display: flex;
@@ -151,8 +146,10 @@
             font-weight: bold;
             color: #444;
             position: relative;
+            transition: all 0.05s ease;
         }
 
+        /* 원래 스타일 그대로 유지 */
         .rythm-box.active {
             background: #fff;
             border-color: #fff;
@@ -160,14 +157,19 @@
             box-shadow: 0 0 15px #fff;
         }
 
+        /* 7번째 박스 전용 Preview 스타일 고수 */
         .rythm-box[data-index="6"].preview-hold {
-            color: #ffeb3b;
-            border-color: #ffeb3b;
+            background: #ffeb3b !important;
+            border-color: #ffeb3b !important;
+            color: #121212 !important;
+            box-shadow: 0 0 20px #ffeb3b !important;
         }
 
         .rythm-box[data-index="6"].preview-vel {
-            color: #bc00ff;
-            border-color: #bc00ff;
+            background: #bc00ff !important;
+            border-color: #bc00ff !important;
+            color: #fff !important;
+            box-shadow: 0 0 20px #bc00ff !important;
         }
 
         #overlay-value {
@@ -204,7 +206,6 @@
             font-family: monospace;
         }
 
-        /* [4] 결과 화면 */
         #result-screen {
             background: rgba(0, 0, 0, 0.95);
         }
@@ -262,21 +263,13 @@
         }
 
         @keyframes blink {
-
-            0%,
-            100% {
-                opacity: 1;
-            }
-
-            50% {
-                opacity: 0.3;
-            }
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
         }
     </style>
 </head>
 
 <body>
-
     <div id="start-screen" class="screen active-screen" onclick="showSelectScreen()">
         <h1>VELO City</h1>
         <div class="tap-msg">TOUCH TO START</div>
@@ -316,7 +309,7 @@
 
     <script>
         let songsData = [];
-        let currentSongId = ''; // 저장용 ID
+        let currentSongId = '';
         let currentMusicUrl = '';
         let currentNotesUrl = '';
         let notesData = [];
@@ -328,7 +321,6 @@
         let activeEvents = [];
         let gameStats = { perfect: 0, great: 0, miss: 0 };
         
-        // 윈도우 기법을 위한 변수 수정
         let moveHistory = []; 
         const TIME_WINDOW = 150; 
         let currentFlickVal = 0;
@@ -341,7 +333,7 @@
         const audioCtx = new AudioContext();
         const INITIAL_SPEED = 0.000001;
         const ACCELERATION = 0.00025;
-        const SENSITIVITY = 27; // 감도 하향 조정
+        const SENSITIVITY = 27;
 
         async function showSelectScreen() {
             if (audioCtx.state === 'suspended') await audioCtx.resume();
@@ -407,7 +399,6 @@
         function saveHighScore(rank) {
             const savedScores = JSON.parse(localStorage.getItem('velo_city_scores') || '{}');
             const prevRank = savedScores[currentSongId] || '-';
-
             if (rankPriority[rank] > rankPriority[prevRank]) {
                 savedScores[currentSongId] = rank;
                 localStorage.setItem('velo_city_scores', JSON.stringify(savedScores));
@@ -433,9 +424,7 @@
                 else if (notPerfect <= 6) rank = "C";
                 else rank = "D";
             }
-
             saveHighScore(rank);
-
             const rankEl = document.getElementById('res-rank');
             rankEl.innerText = rank;
             rankEl.style.color = rankColors[rank];
@@ -485,29 +474,36 @@
 
             boxes.forEach(box => {
                 box.classList.remove('active', 'preview-hold', 'preview-vel');
+                box.style.boxShadow = "none"; // 그림자 초기화
+                box.style.borderColor = "#333"; // 테두리 초기화
                 box.innerText = parseInt(box.dataset.index) + 1;
             });
-
-            const previewTargets = activeEvents.filter(ev => !ev.isFinished && !ev.isHolding && now >= ev.time - (ev.beatDur * 3.5) + 50 && now < ev.time).sort((a, b) => a.time - b.time);
-            if (previewTargets.length > 0) {
-                const target = previewTargets[0];
-                const lastBox = boxes[6];
-                if (target.duration) { lastBox.classList.add('preview-hold'); lastBox.innerText = `HOLD(${target.duration})`; }
-                else if (target.velocity) { lastBox.classList.add('preview-vel'); lastBox.innerText = `FLICK(${target.velocity})`; }
-            }
 
             activeEvents.forEach(ev => {
                 if (ev.isFinished) return;
                 const elapsed = now - ev.startTime;
                 const currentBeat = Math.floor(elapsed / ev.beatDur);
 
-                if (!ev.isHolding && currentBeat <= 6) {
+                if (!ev.isHolding && currentBeat >= 0 && currentBeat <= 6) {
                     if (currentBeat > ev.lastPlayedBeat) {
                         ev.lastPlayedBeat = currentBeat;
-                        if (currentBeat >= 0) playBeep(440, 0.05);
+                        playBeep(440, 0.05);
                     }
                     const targetBox = boxes[currentBeat];
-                    if (targetBox) targetBox.classList.add('active');
+                    if (targetBox) {
+                        targetBox.classList.add('active');
+                        // [추가된 로직] 그림자 색깔만 타입에 따라 슬쩍 변경
+                        if (currentBeat < 6) {
+                            if (ev.duration) { 
+                                targetBox.style.boxShadow = "0 0 15px #ffeb3b"; 
+                                targetBox.style.borderColor = "#ffeb3b";
+                            }
+                            else if (ev.velocity) { 
+                                targetBox.style.boxShadow = "0 0 15px #bc00ff"; 
+                                targetBox.style.borderColor = "#bc00ff";
+                            }
+                        }
+                    }
                 }
 
                 if (ev.isHolding) {
@@ -531,13 +527,28 @@
                 }
                 if (!ev.isHolding && now > ev.time + 250) finalize(ev, 999);
             });
+
+            // 7번째 박스 Preview 스타일 유지
+            const previewTargets = activeEvents.filter(ev => !ev.isFinished && !ev.isHolding && now >= ev.time - (ev.beatDur * 3.5) + 50 && now < ev.time).sort((a, b) => a.time - b.time);
+            if (previewTargets.length > 0) {
+                const target = previewTargets[0];
+                const lastBox = boxes[6];
+                if (target.duration) { 
+                    lastBox.classList.add('preview-hold'); 
+                    lastBox.innerText = `HOLD(${target.duration})`; 
+                }
+                else if (target.velocity) { 
+                    lastBox.classList.add('preview-vel'); 
+                    lastBox.innerText = `FLICK(${target.velocity})`; 
+                }
+            }
+
             requestAnimationFrame(update);
         }
 
         function finalize(ev, diff) {
             ev.isFinished = true;
             let msg = "MISS"; let color = "#ff4444";
-
             if (Math.abs(diff) < 80) { msg = "PERFECT"; color = "#00ffcc"; gameStats.perfect++; }
             else if (Math.abs(diff) < 150) { msg = "GREAT"; color = "#ffcc00"; gameStats.great++; }
             else { gameStats.miss++; if (gameStats.miss > 8) { triggerGameOver(); return; } }
@@ -561,7 +572,6 @@
             if (!document.getElementById('game-screen').classList.contains('active-screen')) return;
             if (isGameOver) return;
             if (e.cancelable) e.preventDefault();
-
             if (audioCtx.state === 'suspended') await audioCtx.resume();
 
             if (!isStarted) {
@@ -580,7 +590,6 @@
             const hitTime = (audioCtx.currentTime - startTime) * 1000;
             const ev = activeEvents.find(a => !a.isFinished && !a.isHolding && Math.abs(hitTime - a.time) < 400);
             if (!ev) return;
-
             if (Math.abs(hitTime - ev.time) > 150) { finalize(ev, hitTime - ev.time); return; }
 
             if (ev.duration || ev.velocity) {
@@ -588,7 +597,6 @@
                 ev.isFlickMode = (e.type === 'touchstart' && ev.velocity);
                 if (ev.isFlickMode) {
                     const t = e.touches[0];
-                    // 시간 윈도우 기록 초기화
                     moveHistory = [{ x: t.clientX, y: t.clientY, t: hitTime }];
                 } else if (ev.velocity) {
                     const a = 0.5 * ACCELERATION, b = INITIAL_SPEED, c = -ev.velocity;
@@ -603,16 +611,10 @@
             if (ev && e.touches) {
                 const now = (audioCtx.currentTime - startTime) * 1000;
                 const t = e.touches[0];
-                
-                // 시간 윈도우 기법 적용: 이동 데이터 기록
                 moveHistory.push({ x: t.clientX, y: t.clientY, t: now });
-
-                // 150ms보다 오래된 데이터 제거
                 while (moveHistory.length > 0 && now - moveHistory[0].t > TIME_WINDOW) {
                     moveHistory.shift();
                 }
-
-                // 현재 윈도우 기준 실시간 속도 계산 (화면 표시용)
                 if (moveHistory.length >= 2) {
                     const first = moveHistory[0];
                     const last = moveHistory[moveHistory.length - 1];
@@ -630,7 +632,6 @@
                 const relTime = (audioCtx.currentTime - startTime) * 1000;
                 let diff;
                 if (ev.isFlickMode) {
-                    // 시간 윈도우 기법 적용: 최종 윈도우 데이터로 속도 확정
                     if (moveHistory.length >= 2) {
                         const first = moveHistory[0];
                         const last = moveHistory[moveHistory.length - 1];
@@ -644,7 +645,7 @@
                     diff = ev.velocity ? (relTime - ev.pressStartTime) - ev.targetChargeTime : (relTime - (ev.time + (ev.duration * ev.beatDur)));
                 }
                 finalize(ev, diff);
-                moveHistory = []; // 초기화
+                moveHistory = [];
             }
         }
 
@@ -655,5 +656,4 @@
         window.addEventListener('touchend', handleEnd, { passive: false });
     </script>
 </body>
-
 </html>
