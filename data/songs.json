@@ -9,21 +9,21 @@
         "cover": "assets/hungry.jpg"
     },
     {
-        "id": "spring-vivaldi",
-        "title": "사계 ㅡ 봄",
-        "artist": "비발디",
-        "bpm": 128,
-        "musicUrl": "data/spring-vivaldi.mp3",
-        "jsonUrl": "data/spring-vivaldi.json",
-        "cover": "assets/cover1.jpg"
+        "id": "1231",
+        "title": "1231",
+        "artist": "1231",
+        "bpm": 95,
+        "musicUrl": "data/1231.mp3",
+        "jsonUrl": "data/1231.json",
+        "cover": "assets/1231.jpg"
     },
     {
         "id": "another-track",
-        "title": "다른 곡 제목",
+        "title": "test",
         "artist": "Composer",
-        "bpm": 140,
-        "musicUrl": "data/track2.mp3",
-        "jsonUrl": "data/track2.json",
-        "cover": "assets/cover2.jpg"
+        "bpm": 60,
+        "musicUrl": "data/1231.mp3",
+        "jsonUrl": "data/test.json",
+        "cover": "assets/cover.jpg"
     }
 ]
