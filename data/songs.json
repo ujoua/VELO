@@ -18,6 +18,15 @@
         "cover": "assets/1231.jpg"
     },
     {
+        "id": "please",
+        "title": "제발",
+        "artist": "제발",
+        "bpm": 100,
+        "musicUrl": "data/제발.mp3",
+        "jsonUrl": "data/제발.json",
+        "cover": "assets/제발.jpg"
+    },
+    {
         "id": "another-track",
         "title": "test",
         "artist": "Composer",
